@@ -33,10 +33,16 @@ final class Weather {
                     .putFloat(Prefs.HI, (float) day.getJSONArray("temperature_2m_max").getDouble(0))
                     .putFloat(Prefs.LO, (float) day.getJSONArray("temperature_2m_min").getDouble(0))
                     .putBoolean(Prefs.HAS, true)
+                    .putLong(Prefs.FETCHED, System.currentTimeMillis())
                     .apply();
         } catch (Exception ignored) {
             // offline or API hiccup: keep showing the last known weather
         }
+    }
+
+    static void refreshIfStale(Context c) {
+        long age = System.currentTimeMillis() - Prefs.get(c).getLong(Prefs.FETCHED, 0L);
+        if (age > 25 * 60 * 1000L) refresh(c);
     }
 
     /** Looks up a city name. Saves it and returns a display label, or null if not found. */

@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.AdapterView;
@@ -24,7 +26,7 @@ import android.widget.Toast;
 
 public class SettingsActivity extends Activity {
     private static final int WHITE = 0xFFFFFFFF;
-    private static final int PREVIEW_W = 300, PREVIEW_H = 140;
+    private static final int PREVIEW_W = 320, PREVIEW_H = 140;
 
     private SharedPreferences sp;
     private FrameLayout preview;
@@ -60,11 +62,18 @@ public class SettingsActivity extends Activity {
         setContentView(root);
 
         header("Look");
+        spinner("Theme", Render.THEMES, Prefs.THEME);
         spinner("Color style", Render.PRESETS, Prefs.PRESET);
         spinner("Clock font", Render.FONTS, Prefs.FONT);
         spinner("Text color", Render.TEXTS, Prefs.TEXT);
         seek("Card opacity", Prefs.OPACITY, 15, 100, 80, "%");
         seek("Corner radius", Prefs.RADIUS, 0, 48, 28, "dp");
+
+        header("Show");
+        toggle("Greeting", Prefs.GREETING, true, null);
+        nameRow();
+        toggle("Next alarm", Prefs.ALARM, true, null);
+        toggle("Day progress (rings / bar)", Prefs.PROGRESS, true, null);
 
         header("Clock");
         toggle("24-hour time", Prefs.H24, false, null);
@@ -82,6 +91,7 @@ public class SettingsActivity extends Activity {
     protected void onPause() {
         super.onPause();
         GlanceWidget.updateAll(this);
+        GlanceWidget.schedule(this);
     }
 
     // ---------- UI helpers ----------
@@ -160,6 +170,31 @@ public class SettingsActivity extends Activity {
             if (on && after != null) after.run();
         });
         panel.addView(sw);
+    }
+
+    private void nameRow() {
+        final EditText name = new EditText(this);
+        name.setHint("Name for the greeting (optional)");
+        name.setSingleLine(true);
+        name.setTextColor(WHITE);
+        name.setHintTextColor(0x88FFFFFF);
+        name.setText(sp.getString(Prefs.NAME, ""));
+        name.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                sp.edit().putString(Prefs.NAME, s.toString().trim()).apply();
+                refresh();
+            }
+        });
+        panel.addView(name);
     }
 
     private void cityRow() {
