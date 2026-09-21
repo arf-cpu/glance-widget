@@ -6,8 +6,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.AdapterView;
@@ -31,6 +29,7 @@ public class SettingsActivity extends Activity {
     private SharedPreferences sp;
     private FrameLayout preview;
     private LinearLayout panel;
+    private Spinner fontSpinner;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -62,20 +61,15 @@ public class SettingsActivity extends Activity {
         setContentView(root);
 
         header("Look");
-        spinner("Theme", Render.THEMES, Prefs.THEME);
+        fontSpinner = spinner("Clock font", Render.fontNames(this), Prefs.FONT);
         spinner("Color style", Render.PRESETS, Prefs.PRESET);
-        spinner("Clock font", Render.FONTS, Prefs.FONT);
         spinner("Text color", Render.TEXTS, Prefs.TEXT);
-        seek("Card opacity", Prefs.OPACITY, 15, 100, 80, "%");
+        toggle("Show card background", Prefs.BG, true, null);
+        seek("Card opacity", Prefs.OPACITY, 0, 100, 80, "%");
         seek("Corner radius", Prefs.RADIUS, 0, 48, 28, "dp");
 
-        header("Show");
-        toggle("Greeting", Prefs.GREETING, true, null);
-        nameRow();
-        toggle("Next alarm", Prefs.ALARM, true, null);
-        toggle("Day progress (rings / bar)", Prefs.PROGRESS, true, null);
-
         header("Clock");
+        toggle("Day progress strip", Prefs.PROGRESS, true, null);
         toggle("24-hour time", Prefs.H24, false, null);
         toggle("Show seconds", Prefs.SECONDS, false, null);
 
@@ -90,8 +84,12 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        GlanceWidget.updateAll(this);
-        GlanceWidget.schedule(this);
+        try {
+            GlanceWidget.updateAll(this);
+            GlanceWidget.schedule(this);
+        } catch (Throwable ignored) {
+            // never crash on the way out: that would make the launcher drop the widget
+        }
     }
 
     // ---------- UI helpers ----------
@@ -115,11 +113,11 @@ public class SettingsActivity extends Activity {
         return v;
     }
 
-    private void spinner(String title, String[] items, final String key) {
+    private Spinner spinner(String title, String[] items, final String key) {
         label(title);
         Spinner s = new Spinner(this);
         s.setAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, items));
-        s.setSelection(sp.getInt(key, 0));
+        s.setSelection(Math.min(sp.getInt(key, 0), items.length - 1));
         s.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
@@ -132,6 +130,7 @@ public class SettingsActivity extends Activity {
             }
         });
         panel.addView(s);
+        return s;
     }
 
     private void seek(final String title, final String key, final int min, int max, int def, final String unit) {
@@ -170,31 +169,6 @@ public class SettingsActivity extends Activity {
             if (on && after != null) after.run();
         });
         panel.addView(sw);
-    }
-
-    private void nameRow() {
-        final EditText name = new EditText(this);
-        name.setHint("Name for the greeting (optional)");
-        name.setSingleLine(true);
-        name.setTextColor(WHITE);
-        name.setHintTextColor(0x88FFFFFF);
-        name.setText(sp.getString(Prefs.NAME, ""));
-        name.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int a, int b, int c) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                sp.edit().putString(Prefs.NAME, s.toString().trim()).apply();
-                refresh();
-            }
-        });
-        panel.addView(name);
     }
 
     private void cityRow() {
@@ -237,16 +211,35 @@ public class SettingsActivity extends Activity {
         }).start();
     }
 
+    /** Draws the live preview. A bundled font is only trusted for the real widget once it has loaded here. */
     private void refresh() {
         if (preview == null) return;
+        int font = Render.clampFont(this, sp.getInt(Prefs.FONT, 0));
         try {
-            preview.removeAllViews();
-            RemoteViews rv = Render.build(this, PREVIEW_W, PREVIEW_H);
+            RemoteViews rv = Render.build(this, PREVIEW_W, PREVIEW_H, true);
             View v = rv.apply(this, preview);
+            preview.removeAllViews();
             preview.addView(v, new FrameLayout.LayoutParams(dp(PREVIEW_W), dp(PREVIEW_H), Gravity.CENTER));
-        } catch (Exception ignored) {
-            // preview is cosmetic; never crash the settings screen over it
+            if (font >= Layouts.SYSTEM_COUNT) sp.edit().putBoolean(Prefs.FONT_OK + font, true).apply();
+        } catch (Throwable t) {
+            if (font >= Layouts.SYSTEM_COUNT) {
+                sp.edit().putBoolean(Prefs.FONT_OK + font, false).putInt(Prefs.FONT, 0).apply();
+                toast("That font failed to load here, switched back to the default");
+                if (fontSpinner != null) fontSpinner.setSelection(0);
+                return;
+            }
+            showError(t);
         }
+    }
+
+    private void showError(Throwable t) {
+        TextView e = new TextView(this);
+        e.setTextColor(0xFFFF8A80);
+        e.setTextSize(12);
+        e.setPadding(dp(16), dp(24), dp(16), 0);
+        e.setText("Preview error (screenshot this):\n" + t.getClass().getSimpleName() + ": " + t.getMessage());
+        preview.removeAllViews();
+        preview.addView(e);
     }
 
     private void toast(String m) {

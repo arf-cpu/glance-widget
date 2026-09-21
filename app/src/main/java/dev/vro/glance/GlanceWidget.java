@@ -8,6 +8,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.widget.RemoteViews;
 
 public class GlanceWidget extends AppWidgetProvider {
     static final String TICK = "dev.vro.glance.TICK";
@@ -67,14 +68,20 @@ public class GlanceWidget extends AppWidgetProvider {
         AppWidgetManager m = AppWidgetManager.getInstance(context);
         int[] ids = m.getAppWidgetIds(new ComponentName(context, GlanceWidget.class));
         for (int id : ids) {
-            Bundle o = m.getAppWidgetOptions(id);
-            int w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 280);
-            int h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 130);
-            m.updateAppWidget(id, Render.build(context, w, h));
+            RemoteViews rv;
+            try {
+                Bundle o = m.getAppWidgetOptions(id);
+                int w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250);
+                int h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 120);
+                rv = Render.build(context, w, h, false);
+            } catch (Throwable t) {
+                rv = Render.error(context, t);
+            }
+            m.updateAppWidget(id, rv);
         }
     }
 
-    /** Refreshes the artwork every ~10 minutes so progress rings, greeting and alarm stay current. */
+    /** Refreshes the progress strip every ~10 minutes; the clock itself ticks on its own. */
     static void schedule(Context context) {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
