@@ -29,7 +29,6 @@ public class SettingsActivity extends Activity {
     private SharedPreferences sp;
     private FrameLayout preview;
     private LinearLayout panel;
-    private Spinner fontSpinner;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -61,7 +60,7 @@ public class SettingsActivity extends Activity {
         setContentView(root);
 
         header("Look");
-        fontSpinner = spinner("Clock font", Render.fontNames(this), Prefs.FONT);
+        spinner("Clock font", Render.fontNames(), Prefs.FONT);
         spinner("Color style", Render.PRESETS, Prefs.PRESET);
         spinner("Text color", Render.TEXTS, Prefs.TEXT);
         toggle("Show card background", Prefs.BG, true, null);
@@ -71,7 +70,7 @@ public class SettingsActivity extends Activity {
         header("Clock");
         toggle("Day progress strip", Prefs.PROGRESS, true, null);
         toggle("24-hour time", Prefs.H24, false, null);
-        toggle("Show seconds", Prefs.SECONDS, false, null);
+        toggle("Show seconds (uses more battery)", Prefs.SECONDS, false, null);
 
         header("Weather");
         toggle("Show weather", Prefs.WEATHER, true, () -> fetchWeatherAsync());
@@ -211,23 +210,15 @@ public class SettingsActivity extends Activity {
         }).start();
     }
 
-    /** Draws the live preview. A bundled font is only trusted for the real widget once it has loaded here. */
+    /** Draws the live preview. */
     private void refresh() {
         if (preview == null) return;
-        int font = Render.clampFont(this, sp.getInt(Prefs.FONT, 0));
         try {
-            RemoteViews rv = Render.build(this, PREVIEW_W, PREVIEW_H, true);
+            RemoteViews rv = Render.build(this, PREVIEW_W, PREVIEW_H);
             View v = rv.apply(this, preview);
             preview.removeAllViews();
             preview.addView(v, new FrameLayout.LayoutParams(dp(PREVIEW_W), dp(PREVIEW_H), Gravity.CENTER));
-            if (font >= Layouts.SYSTEM_COUNT) sp.edit().putBoolean(Prefs.FONT_OK + font, true).apply();
         } catch (Throwable t) {
-            if (font >= Layouts.SYSTEM_COUNT) {
-                sp.edit().putBoolean(Prefs.FONT_OK + font, false).putInt(Prefs.FONT, 0).apply();
-                toast("That font failed to load here, switched back to the default");
-                if (fontSpinner != null) fontSpinner.setSelection(0);
-                return;
-            }
             showError(t);
         }
     }

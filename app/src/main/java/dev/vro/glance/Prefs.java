@@ -10,7 +10,7 @@ final class Prefs {
             WEATHER = "weather", FAHR = "fahr",
             CITY = "city", LAT = "lat", LON = "lon",
             HAS = "has", TEMP = "temp", HI = "hi", LO = "lo", CODE = "code", FETCHED = "fetched",
-            FONT_OK = "fontok_";
+            TRIED = "tried";
 
     static SharedPreferences get(Context c) {
         return c.getSharedPreferences("glance", Context.MODE_PRIVATE);

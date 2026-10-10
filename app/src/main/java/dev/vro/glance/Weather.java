@@ -19,6 +19,7 @@ final class Weather {
         try {
             SharedPreferences p = Prefs.get(c);
             if (!p.getBoolean(Prefs.WEATHER, true) || !p.contains(Prefs.LAT)) return;
+            p.edit().putLong(Prefs.TRIED, System.currentTimeMillis()).apply();
             String url = "https://api.open-meteo.com/v1/forecast?latitude=" + p.getFloat(Prefs.LAT, 0f)
                     + "&longitude=" + p.getFloat(Prefs.LON, 0f)
                     + "&current=temperature_2m,weather_code"
@@ -40,9 +41,19 @@ final class Weather {
         }
     }
 
+    /** Weather barely changes, so refetch at most hourly, and wait 15 minutes after a failed try (offline). */
     static void refreshIfStale(Context c) {
-        long age = System.currentTimeMillis() - Prefs.get(c).getLong(Prefs.FETCHED, 0L);
-        if (age > 25 * 60 * 1000L) refresh(c);
+        SharedPreferences p = Prefs.get(c);
+        long now = System.currentTimeMillis();
+        if (!olderThan(p.getLong(Prefs.FETCHED, 0L), 60 * 60 * 1000L, now)) return;
+        if (!olderThan(p.getLong(Prefs.TRIED, 0L), 15 * 60 * 1000L, now)) return;
+        refresh(c);
+    }
+
+    /** True if the timestamp is older than the limit, or in the future (clock was changed). */
+    private static boolean olderThan(long t, long limit, long now) {
+        long age = now - t;
+        return age < 0 || age >= limit;
     }
 
     /** Looks up a city name. Saves it and returns a display label, or null if not found. */

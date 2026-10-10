@@ -8,15 +8,11 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.os.Build;
 import android.view.View;
 import android.widget.RemoteViews;
 
-import java.text.SimpleDateFormat;
 import java.util.Calendar;
-import java.util.Date;
-import java.util.Locale;
 
 final class Render {
     static final String[] PRESETS = {"Wallpaper colors (Android 12+)", "Sunset", "Neon", "Ocean", "Forest", "Mono"};
@@ -32,40 +28,20 @@ final class Render {
             {0xFF232526, 0xFF414345, 0xFFFFFFFF}
     };
 
-    // ---------- fonts: four built-in system ones, bundled ones, and Anurati if the add-on was installed ----------
+    // ---------- fonts ----------
 
-    private static int anuratiLayout(Context c) {
-        return c.getResources().getIdentifier("widget_anurati", "layout", c.getPackageName());
+    static String[] fontNames() {
+        return Layouts.NAMES;
     }
 
-    static String[] fontNames(Context c) {
-        boolean extra = anuratiLayout(c) != 0;
-        String[] out = new String[Layouts.NAMES.length + (extra ? 1 : 0)];
-        System.arraycopy(Layouts.NAMES, 0, out, 0, Layouts.NAMES.length);
-        if (extra) out[out.length - 1] = "Anurati";
-        return out;
+    private static int clampFont(int idx) {
+        return Math.max(0, Math.min(idx, Layouts.IDS.length - 1));
     }
 
-    static int fontCount(Context c) {
-        return Layouts.NAMES.length + (anuratiLayout(c) != 0 ? 1 : 0);
-    }
-
-    private static int fontLayout(Context c, int idx) {
-        return idx < Layouts.IDS.length ? Layouts.IDS[idx] : anuratiLayout(c);
-    }
-
-    static int clampFont(Context c, int idx) {
-        return Math.max(0, Math.min(idx, fontCount(c) - 1));
-    }
-
-    /**
-     * trial = true is used by the settings preview: it uses the chosen font even if it has not been proven to load yet.
-     * Otherwise a bundled font is only used after the preview has loaded it successfully once.
-     */
-    static RemoteViews build(Context c, int wDp, int hDp, boolean trial) {
+    static RemoteViews build(Context c, int wDp, int hDp) {
         SharedPreferences p = Prefs.get(c);
         int preset = Math.max(0, Math.min(p.getInt(Prefs.PRESET, 0), PRESETS.length - 1));
-        int fontIdx = clampFont(c, p.getInt(Prefs.FONT, 0));
+        int fontIdx = clampFont(p.getInt(Prefs.FONT, 0));
         int textMode = p.getInt(Prefs.TEXT, 0);
         int opacity = p.getInt(Prefs.OPACITY, 80);
         int bgPct = p.getBoolean(Prefs.BG, true) ? opacity : 0;
@@ -112,11 +88,7 @@ final class Render {
         Calendar cal = Calendar.getInstance();
         float day = (cal.get(Calendar.HOUR_OF_DAY) * 3600 + cal.get(Calendar.MINUTE) * 60 + cal.get(Calendar.SECOND)) / 86400f;
 
-        // Bundled fonts: launchers ignore fonts in RemoteViews layouts, so the clock is drawn as a bitmap instead.
-        Typeface tf = TextArt.typeface(c, fontIdx);
-        boolean bitmapClock = tf != null;
-        int layout = bitmapClock ? R.layout.widget_bitmap : fontLayout(c, fontIdx);
-        RemoteViews rv = new RemoteViews(c.getPackageName(), layout);
+        RemoteViews rv = new RemoteViews(c.getPackageName(), Layouts.IDS[fontIdx]);
 
         rv.setImageViewBitmap(R.id.bg, Art.draw(c, wDp, hDp, start, end, accent, text, bgPct, radius, progress, day));
         float d = c.getResources().getDisplayMetrics().density;
@@ -126,23 +98,12 @@ final class Render {
         boolean h24 = p.getBoolean(Prefs.H24, false);
         boolean sec = p.getBoolean(Prefs.SECONDS, false);
         String timeFormat = (h24 ? "HH:mm" : "h:mm") + (sec ? ":ss" : "");
-        if (bitmapClock) {
-            // Seconds can't tick inside a bitmap, so they are left out for bundled fonts.
-            String fmt = h24 ? "HH:mm" : "h:mm";
-            String clockText = new SimpleDateFormat(fmt, Locale.getDefault()).format(new Date());
-            float contentH = hDp - 12 - (progress ? 34 : 12);
-            int clockW = Math.round((wDp - 40) * d);
-            int clockH = Math.round(contentH * 0.61f * d);
-            rv.setImageViewBitmap(R.id.clock_img,
-                    TextArt.draw(clockText, tf, text, clockW, clockH, clockH * 1.3f, 3 * d));
-        } else {
-            rv.setCharSequence(R.id.clock, "setFormat12Hour", timeFormat);
-            rv.setCharSequence(R.id.clock, "setFormat24Hour", timeFormat);
-        }
+        rv.setCharSequence(R.id.clock, "setFormat12Hour", timeFormat);
+        rv.setCharSequence(R.id.clock, "setFormat24Hour", timeFormat);
         rv.setCharSequence(R.id.date, "setFormat12Hour", "EEEE, d MMMM");
         rv.setCharSequence(R.id.date, "setFormat24Hour", "EEEE, d MMMM");
 
-        if (!bitmapClock) rv.setTextColor(R.id.clock, text);
+        rv.setTextColor(R.id.clock, text);
         rv.setTextColor(R.id.date, accent);
         rv.setTextColor(R.id.weather, text);
 

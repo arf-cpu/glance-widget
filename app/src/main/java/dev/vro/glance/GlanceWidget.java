@@ -12,7 +12,7 @@ import android.widget.RemoteViews;
 
 public class GlanceWidget extends AppWidgetProvider {
     static final String TICK = "dev.vro.glance.TICK";
-    private static final long TICK_MS = 10 * 60 * 1000L;
+    private static final long TICK_MS = 15 * 60 * 1000L;
 
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
@@ -20,7 +20,7 @@ public class GlanceWidget extends AppWidgetProvider {
         final Context app = context.getApplicationContext();
         new Thread(() -> {
             try {
-                Weather.refresh(app);
+                Weather.refreshIfStale(app);
                 updateAll(app);
                 schedule(app);
             } finally {
@@ -73,7 +73,7 @@ public class GlanceWidget extends AppWidgetProvider {
                 Bundle o = m.getAppWidgetOptions(id);
                 int w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250);
                 int h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 120);
-                rv = Render.build(context, w, h, false);
+                rv = Render.build(context, w, h);
             } catch (Throwable t) {
                 rv = Render.error(context, t);
             }
@@ -81,7 +81,7 @@ public class GlanceWidget extends AppWidgetProvider {
         }
     }
 
-    /** Refreshes the progress strip every ~10 minutes; the clock itself ticks on its own. */
+    /** Refreshes the progress strip every ~15 minutes; the clock itself ticks on its own. */
     static void schedule(Context context) {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
