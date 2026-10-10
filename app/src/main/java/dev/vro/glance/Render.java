@@ -8,11 +8,15 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.view.View;
 import android.widget.RemoteViews;
 
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
+import java.util.Locale;
 
 final class Render {
     static final String[] PRESETS = {"Wallpaper colors (Android 12+)", "Sunset", "Neon", "Ocean", "Forest", "Mono"};
@@ -108,10 +112,10 @@ final class Render {
         Calendar cal = Calendar.getInstance();
         float day = (cal.get(Calendar.HOUR_OF_DAY) * 3600 + cal.get(Calendar.MINUTE) * 60 + cal.get(Calendar.SECOND)) / 86400f;
 
-        int layout = fontLayout(c, fontIdx);
-        if (fontIdx >= Layouts.SYSTEM_COUNT && !trial && !p.getBoolean(Prefs.FONT_OK + fontIdx, false)) {
-            layout = Layouts.IDS[0];
-        }
+        // Bundled fonts: launchers ignore fonts in RemoteViews layouts, so the clock is drawn as a bitmap instead.
+        Typeface tf = TextArt.typeface(c, fontIdx);
+        boolean bitmapClock = tf != null;
+        int layout = bitmapClock ? R.layout.widget_bitmap : fontLayout(c, fontIdx);
         RemoteViews rv = new RemoteViews(c.getPackageName(), layout);
 
         rv.setImageViewBitmap(R.id.bg, Art.draw(c, wDp, hDp, start, end, accent, text, bgPct, radius, progress, day));
@@ -122,12 +126,23 @@ final class Render {
         boolean h24 = p.getBoolean(Prefs.H24, false);
         boolean sec = p.getBoolean(Prefs.SECONDS, false);
         String timeFormat = (h24 ? "HH:mm" : "h:mm") + (sec ? ":ss" : "");
-        rv.setCharSequence(R.id.clock, "setFormat12Hour", timeFormat);
-        rv.setCharSequence(R.id.clock, "setFormat24Hour", timeFormat);
+        if (bitmapClock) {
+            // Seconds can't tick inside a bitmap, so they are left out for bundled fonts.
+            String fmt = h24 ? "HH:mm" : "h:mm";
+            String clockText = new SimpleDateFormat(fmt, Locale.getDefault()).format(new Date());
+            float contentH = hDp - 12 - (progress ? 34 : 12);
+            int clockW = Math.round((wDp - 40) * d);
+            int clockH = Math.round(contentH * 0.61f * d);
+            rv.setImageViewBitmap(R.id.clock_img,
+                    TextArt.draw(clockText, tf, text, clockW, clockH, clockH * 1.3f, 3 * d));
+        } else {
+            rv.setCharSequence(R.id.clock, "setFormat12Hour", timeFormat);
+            rv.setCharSequence(R.id.clock, "setFormat24Hour", timeFormat);
+        }
         rv.setCharSequence(R.id.date, "setFormat12Hour", "EEEE, d MMMM");
         rv.setCharSequence(R.id.date, "setFormat24Hour", "EEEE, d MMMM");
 
-        rv.setTextColor(R.id.clock, text);
+        if (!bitmapClock) rv.setTextColor(R.id.clock, text);
         rv.setTextColor(R.id.date, accent);
         rv.setTextColor(R.id.weather, text);
 
